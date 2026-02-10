@@ -2,6 +2,9 @@
 
 **Synthesis-first waveform enhancement for neural codec repair and bandwidth extension.**
 
+[**Technical Report**](assets/Brontes%20Technical%20Report.pdf)
+
+
 Brontes is a time-domain audio enhancement model that upsamples and repairs speech degraded by neural codec compression. Unlike conventional Wave U-Net approaches that rely on dense skip connections, Brontes uses a synthesis-first architecture with selective deep skips, forcing the model to actively reconstruct rather than copy degraded input details.
 
 ## Pretrained Models
@@ -118,7 +121,9 @@ Brontes/
 ├── configs/
 │   └── config_brontes_48khz_demucs.yaml
 ├── tests/                  # Unit tests for U-Net, discriminators, losses
+├── assets/                 # Technical report and other assets
 └── requirements.txt
+
 ```
 
 ## Architecture Overview
