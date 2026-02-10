@@ -1,0 +1,8 @@
+torch>=1.9.0
+torchaudio>=0.9.0
+tensorboard>=2.5.0
+PyYAML>=5.4.0
+numpy>=1.20.0
+tqdm>=4.60.0
+einops>=0.6.0
+pesto-pitch
