@@ -56,10 +56,6 @@ python train_brontes.py \
   --pretrained <path/to/pretrained_checkpoint_dir>
 ```
 
-**What gets loaded:** Model weights + discriminator weights (if available)  
-**What doesn't:** Optimizer states, training step/epoch counters  
-**Use case:** Adapting a pretrained model to a new dataset or domain
-
 #### 2. Resuming Training (`--checkpoint_path`)
 
 Explicitly resume from a specific checkpoint directory with full training state:
@@ -71,9 +67,6 @@ python train_brontes.py \
   --train_output_dir <path/to/target_audio> \
   --checkpoint_path <path/to/checkpoint_dir>
 ```
-
-**What gets loaded:** Model + discriminator + optimizers + step/epoch counters  
-**Use case:** Continuing interrupted training runs
 
 #### 3. Automatic Checkpoint Resumption
 
@@ -106,26 +99,6 @@ python infer_brontes.py \
   --output <path/to/output.wav>
 ```
 
-## Project Structure
-
-```
-Brontes/
-├── brontes.py              # Main model (Brontes → UNet1DRefiner)
-├── unet1d.py               # Core U-Net implementation
-├── discriminators.py       # Unified MPD/MSD/MBSD discriminator stack
-├── audio_loss.py           # Mel, MR-STFT, and pitch losses
-├── audio_pair_dataset.py   # Paired audio dataset loader
-├── train_brontes.py        # Training script with GAN support
-├── infer_brontes.py        # Inference with overlap-add chunking
-├── infer_brontes.ipynb     # Notebook for inference/export
-├── configs/
-│   └── config_brontes_48khz_demucs.yaml
-├── tests/                  # Unit tests for U-Net, discriminators, losses
-├── assets/                 # Technical report and other assets
-└── requirements.txt
-
-```
-
 ## Architecture Overview
 
 Brontes uses a 6-stage encoder-decoder with stride 4 per stage (4096× total compression):
@@ -138,9 +111,6 @@ Input (24kHz) → Encoder [6 stages] → LSTM Bottleneck → Decoder [6 stages] 
 
 **Why selective skips?** Standard U-Net skips assume input details are useful for reconstruction. For codec repair, input details *are* the artifacts we're trying to remove. Restricting skips to deep layers provides semantic guidance without leaking degraded fine structure.
 
-## Acknowledgments
-
-Compute resources provided by Hot Aisle and AI at AMD.
 
 ## License
 
