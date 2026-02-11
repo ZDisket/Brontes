@@ -824,6 +824,18 @@ def train(args):
     # Setup mixed precision
     scaler = GradScaler(enabled=training_config['fp16_run'])
     
+    # Setup checkpoint directory - use command line overrides if provided
+    # This must be done before checkpoint loading logic
+    log_dir = args.log_dir if args.log_dir else paths_config['log_dir']
+    # If log_dir is overridden, default checkpoint_dir to log_dir/checkpoints
+    # Otherwise use the config checkpoint_dir
+    if args.log_dir:
+        checkpoint_dir = os.path.join(log_dir, 'checkpoints')
+    else:
+        checkpoint_dir = args.checkpoint_dir if args.checkpoint_dir else paths_config['checkpoint_dir']
+    
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
     # Handle checkpoint loading with priority: explicit checkpoint_path > pretrained > auto-resume
     start_step = 0
     start_epoch = 0
@@ -901,16 +913,7 @@ def train(args):
     print(f"Training samples: {len(train_dataset)}")
     print(f"Validation samples: {len(val_dataset)}")
     
-    # Setup logging - use command line overrides if provided
-    log_dir = args.log_dir if args.log_dir else paths_config['log_dir']
-    # If log_dir is overridden, default checkpoint_dir to log_dir/checkpoints
-    # Otherwise use the config checkpoint_dir
-    if args.log_dir:
-        checkpoint_dir = os.path.join(log_dir, 'checkpoints')
-    else:
-        checkpoint_dir = args.checkpoint_dir if args.checkpoint_dir else paths_config['checkpoint_dir']
-    
-    os.makedirs(checkpoint_dir, exist_ok=True)
+    # Setup TensorBoard writer (log_dir and checkpoint_dir already defined earlier)
     writer = SummaryWriter(log_dir)
     
     # Training loop

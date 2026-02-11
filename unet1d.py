@@ -152,9 +152,9 @@ class DoubleConv1d(nn.Module):
 
 class DownBlock1d(nn.Module):
     # Returns (x_down, skip)
-    def __init__(self, ch_in, ch_out, k=7, norm='gn', act='lrelu', separable=False, channel_attn="se", stride=2):
+    def __init__(self, ch_in, ch_out, k=7, norm='gn', act='lrelu', separable=False, channel_attn="se", stride=2, residual=False):
         super().__init__()
-        self.pre = DoubleConv1d(ch_in, ch_out, k=k, d1=1, d2=1, norm=norm, act=act, separable=separable)
+        self.pre = DoubleConv1d(ch_in, ch_out, k=k, d1=1, d2=1, norm=norm, act=act, separable=separable, residual=residual)
         # stride downsample with weight-normed conv
         # consistent with k=4, s=2, p=1: k = 2*s, p = s // 2
         self.down = wn_conv1d(ch_out, ch_out, k=2*stride, s=stride, p=stride//2, d=1, norm=norm)
@@ -252,11 +252,11 @@ class UpBlock1d(nn.Module):
         return x
 
 class Bottleneck1d(nn.Module):
-    def __init__(self, ch, k=7, dilations=(1, 2, 4, 8), norm='gn', act='lrelu', separable=False):
+    def __init__(self, ch, k=7, dilations=(1, 2, 4, 8), norm='gn', act='lrelu', separable=False, residual=False):
         super().__init__()
         blocks = []
         for d in dilations:
-            blocks.append(DoubleConv1d(ch, ch, k=k, d1=d, d2=1, norm=norm, act=act, separable=separable))
+            blocks.append(DoubleConv1d(ch, ch, k=k, d1=d, d2=1, norm=norm, act=act, separable=separable, residual=residual))
         self.blocks = nn.ModuleList(blocks)
 
     def forward(self, x):
@@ -305,6 +305,7 @@ class UNet1DRefiner(nn.Module):
         norm='gn',
         act='lrelu',
         separable=False,
+        residual=False,
         use_deconv=True,
         bottleneck_dilations=(1, 2, 4, 8),
         learnable_alpha=True,
@@ -350,7 +351,7 @@ class UNet1DRefiner(nn.Module):
 
         for idx, m in enumerate(ch_mults):
             ch_out = base_ch * m
-            self.enc.append(DownBlock1d(prev_ch, ch_out, k=k, norm=norm, act=act, separable=separable, channel_attn=ch_attns[idx], stride=stride))
+            self.enc.append(DownBlock1d(prev_ch, ch_out, k=k, norm=norm, act=act, separable=separable, channel_attn=ch_attns[idx], stride=stride, residual=residual))
             skips_ch.append(ch_out)
             prev_ch = ch_out
 
@@ -358,7 +359,7 @@ class UNet1DRefiner(nn.Module):
         if use_lstm_bottleneck:
             self.bot = LSTMBottleneck1d(prev_ch, layers=lstm_layers, bidirectional=lstm_bidirectional)
         else:
-            self.bot = Bottleneck1d(prev_ch, k=k, dilations=bottleneck_dilations, norm=norm, act=act, separable=separable)
+            self.bot = Bottleneck1d(prev_ch, k=k, dilations=bottleneck_dilations, norm=norm, act=act, separable=separable, residual=residual)
 
         # Decoder (reverse channel schedule)
         self.dec = nn.ModuleList()

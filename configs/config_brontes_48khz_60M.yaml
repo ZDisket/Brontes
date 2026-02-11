@@ -39,6 +39,7 @@ model:
     istft_hop_length: 16     # Hop length for iSTFT
     istft_win_length: null    # Window length (null = same as n_fft)
     phase_eps: 1.0e-8         # Epsilon for safe atan2 phase recovery
+    residual: true
     
     
 # Dataset configuration
