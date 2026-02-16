@@ -91,7 +91,7 @@ training:
   # Per-discriminator channel scaling (1.0 = default, 0.5 = half channels, etc.)
   mpd_ch_scale: 1.0
   msd_ch_scale: 1.0
-  mbsd_ch_scale: 1.0
+  mbsd_ch_scale: 3.0
 
 
   # Audio loss parameters (adapted for 48kHz)

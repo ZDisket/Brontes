@@ -99,6 +99,16 @@ python infer_brontes.py \
   --output <path/to/output.wav>
 ```
 
+## Training Logs
+
+Training metrics, audio samples, and loss curves are logged to [TensorBoard](https://www.tensorflow.org/tensorboard). To monitor training progress, run:
+
+```bash
+tensorboard --logdir <path/to/log_dir>
+```
+
+The log directory defaults to the `log_dir` path specified in the config file (e.g., `./logs/brontes_48khz`) and can be overridden with the `--log_dir` flag.
+
 ## Architecture Overview
 
 Brontes uses a 6-stage encoder-decoder with stride 4 per stage (4096× total compression):

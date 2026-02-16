@@ -59,29 +59,32 @@ class SEBlock2D(nn.Module):
 
 
 class DiscriminatorP(torch.nn.Module):
-    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False, use_se_blocks=False):
+    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False, use_se_blocks=False, ch_scale=1.0):
         super(DiscriminatorP, self).__init__()
         self.period = period
         self.use_se_blocks = use_se_blocks
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         
+        # Apply channel scaling
+        c = [int(ch * ch_scale) for ch in [32, 128, 512, 1024, 1024]]
+        
         # Create conv layers
         conv_layers = [
-            norm_f(Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-            norm_f(Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(2, 0))),
+            norm_f(Conv2d(1, c[0], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(c[0], c[1], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(c[1], c[2], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(c[2], c[3], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
+            norm_f(Conv2d(c[3], c[4], (kernel_size, 1), 1, padding=(2, 0))),
         ]
         self.convs = nn.ModuleList(conv_layers)
         
         # Create single SE block if enabled (at the end)
         if self.use_se_blocks:
-            self.se_block = SEBlock2D(1024)  # After the last conv layer
+            self.se_block = SEBlock2D(c[4])  # After the last conv layer
         else:
             self.se_block = None
         
-        self.conv_post = norm_f(Conv2d(1024, 1, (3, 1), 1, padding=(1, 0)))
+        self.conv_post = norm_f(Conv2d(c[4], 1, (3, 1), 1, padding=(1, 0)))
 
     def forward(self, x):
         fmap = []
@@ -112,14 +115,14 @@ class DiscriminatorP(torch.nn.Module):
 
 
 class MultiPeriodDiscriminator(torch.nn.Module):
-    def __init__(self, use_se_blocks=False):
+    def __init__(self, use_se_blocks=False, ch_scale=1.0):
         super(MultiPeriodDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList([
-            DiscriminatorP(5, use_se_blocks=use_se_blocks),
-            DiscriminatorP(7, use_se_blocks=False),
-            DiscriminatorP(11, use_se_blocks=use_se_blocks),
-            DiscriminatorP(17, use_se_blocks=False),
-            DiscriminatorP(23, use_se_blocks=use_se_blocks),
+            DiscriminatorP(5, use_se_blocks=use_se_blocks, ch_scale=ch_scale),
+            DiscriminatorP(7, use_se_blocks=False, ch_scale=ch_scale),
+            DiscriminatorP(11, use_se_blocks=use_se_blocks, ch_scale=ch_scale),
+            DiscriminatorP(17, use_se_blocks=False, ch_scale=ch_scale),
+            DiscriminatorP(23, use_se_blocks=use_se_blocks, ch_scale=ch_scale),
         ])
 
     def forward(self, y, y_hat):
@@ -140,30 +143,35 @@ class MultiPeriodDiscriminator(torch.nn.Module):
 
 
 class DiscriminatorS(torch.nn.Module):
-    def __init__(self, use_spectral_norm=False, use_se_blocks=False):
+    def __init__(self, use_spectral_norm=False, use_se_blocks=False, ch_scale=1.0):
         super(DiscriminatorS, self).__init__()
         self.use_se_blocks = use_se_blocks
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         
+        # Apply channel scaling — groups must evenly divide channel counts
+        def _s(ch):
+            return max(16, int(ch * ch_scale) // 16 * 16)  # round to multiple of 16 for groups
+        c = [_s(128), _s(128), _s(256), _s(512), _s(1024), _s(1024), _s(1024)]
+        
         # Create conv layers
         conv_layers = [
-            norm_f(Conv1d(1, 128, 15, 1, padding=7)),
-            norm_f(Conv1d(128, 128, 41, 2, groups=4, padding=20)),
-            norm_f(Conv1d(128, 256, 41, 2, groups=16, padding=20)),
-            norm_f(Conv1d(256, 512, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(512, 1024, 41, 4, groups=16, padding=20)),
-            norm_f(Conv1d(1024, 1024, 41, 1, groups=16, padding=20)),
-            norm_f(Conv1d(1024, 1024, 5, 1, padding=2)),
+            norm_f(Conv1d(1, c[0], 15, 1, padding=7)),
+            norm_f(Conv1d(c[0], c[1], 41, 2, groups=4, padding=20)),
+            norm_f(Conv1d(c[1], c[2], 41, 2, groups=16, padding=20)),
+            norm_f(Conv1d(c[2], c[3], 41, 4, groups=16, padding=20)),
+            norm_f(Conv1d(c[3], c[4], 41, 4, groups=16, padding=20)),
+            norm_f(Conv1d(c[4], c[5], 41, 1, groups=16, padding=20)),
+            norm_f(Conv1d(c[5], c[6], 5, 1, padding=2)),
         ]
         self.convs = nn.ModuleList(conv_layers)
         
         # Create single SE block if enabled (at the end)
         if self.use_se_blocks:
-            self.se_block = SEBlock1D(1024)   # After the last conv layer
+            self.se_block = SEBlock1D(c[6])   # After the last conv layer
         else:
             self.se_block = None
         
-        self.conv_post = norm_f(Conv1d(1024, 1, 3, 1, padding=1))
+        self.conv_post = norm_f(Conv1d(c[6], 1, 3, 1, padding=1))
 
     def forward(self, x):
         fmap = []
@@ -186,12 +194,12 @@ class DiscriminatorS(torch.nn.Module):
 
 
 class MultiScaleDiscriminator(torch.nn.Module):
-    def __init__(self, use_se_blocks=False):
+    def __init__(self, use_se_blocks=False, ch_scale=1.0):
         super(MultiScaleDiscriminator, self).__init__()
         self.discriminators = nn.ModuleList([
-            DiscriminatorS(use_spectral_norm=False, use_se_blocks=False),
-            DiscriminatorS(use_se_blocks=use_se_blocks),
-            DiscriminatorS(use_se_blocks=False),
+            DiscriminatorS(use_spectral_norm=False, use_se_blocks=False, ch_scale=ch_scale),
+            DiscriminatorS(use_se_blocks=use_se_blocks, ch_scale=ch_scale),
+            DiscriminatorS(use_se_blocks=False, ch_scale=ch_scale),
         ])
         self.meanpools = nn.ModuleList([
             AvgPool1d(4, 2, padding=2),
@@ -255,6 +263,7 @@ class MultiBandSpecDiscriminator(nn.Module):
         phase_gate_bias=-5.0,
         phase_gate_scale=2.0,
         log_mag_only=False,
+        ch_scale=1.0,
     ):
         """
         Multi-band spectrogram discriminator using log-magnitude and masked phase.
@@ -331,7 +340,7 @@ class MultiBandSpecDiscriminator(nn.Module):
             band_bins.append((start_bin, end_bin))
         self.bands = band_bins  # list of (start_bin, end_bin)
 
-        ch = 32
+        ch = max(1, int(32 * ch_scale))
         # 1 channel per audio channel if log_mag_only, else 3 (log_mag, sin_phase, cos_phase)
         in_channels = audio_channels if log_mag_only else 3 * audio_channels
 
@@ -483,6 +492,10 @@ class Discriminator(nn.Module):
         enable_mbsd=True,
         # Instance noise for stabilizing training
         instance_noise_std=0.0,
+        # Per-discriminator channel scaling factors
+        mpd_ch_scale=1.0,
+        msd_ch_scale=1.0,
+        mbsd_ch_scale=1.0,
     ):
         """
         Initialize the unified discriminator.
@@ -520,10 +533,10 @@ class Discriminator(nn.Module):
         self.enable_mbsd = enable_mbsd
         
         # Multi-Period Discriminator
-        self.mpd = MultiPeriodDiscriminator(use_se_blocks=use_se_blocks) if enable_mpd else None
+        self.mpd = MultiPeriodDiscriminator(use_se_blocks=use_se_blocks, ch_scale=mpd_ch_scale) if enable_mpd else None
         
         # Multi-Scale Discriminator
-        self.msd = MultiScaleDiscriminator(use_se_blocks=use_se_blocks) if enable_msd else None
+        self.msd = MultiScaleDiscriminator(use_se_blocks=use_se_blocks, ch_scale=msd_ch_scale) if enable_msd else None
         
         # Multi-Resolution/Multi-Band Spectral Discriminators (one per window length)
         if enable_mbsd:
@@ -534,6 +547,7 @@ class Discriminator(nn.Module):
                     sample_rate=sample_rate,
                     bands=bands,
                     audio_channels=audio_channels,
+                    ch_scale=mbsd_ch_scale,
                 )
                 for wl in mbsd_window_lengths
             ])

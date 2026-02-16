@@ -234,6 +234,11 @@ def create_discriminators(config, device):
     # Instance noise for stabilizing G/D balance
     instance_noise_std = training_config.get('disc_instance_noise_std', 0.0)
     
+    # Per-discriminator channel scaling factors (1.0 = default size)
+    mpd_ch_scale = training_config.get('mpd_ch_scale', 1.0)
+    msd_ch_scale = training_config.get('msd_ch_scale', 1.0)
+    mbsd_ch_scale = training_config.get('mbsd_ch_scale', 1.0)
+    
     discriminator = Discriminator(
         use_se_blocks=use_se_blocks,
         mbsd_window_lengths=mbsd_window_lengths,
@@ -245,6 +250,9 @@ def create_discriminators(config, device):
         enable_msd=enable_msd,
         enable_mbsd=enable_mbsd,
         instance_noise_std=instance_noise_std,
+        mpd_ch_scale=mpd_ch_scale,
+        msd_ch_scale=msd_ch_scale,
+        mbsd_ch_scale=mbsd_ch_scale,
     ).to(device)
     
     return discriminator
@@ -796,6 +804,18 @@ def train(args):
     discriminator, optimizer_d, disc_loss_fn = None, None, None
     if use_adversarial:
         discriminator = create_discriminators(config, device)
+        # Print discriminator parameter breakdown
+        disc_total = sum(p.numel() for p in discriminator.parameters())
+        print(f"Discriminator total parameters: {disc_total / 1e6:.2f}M")
+        if discriminator.mpd is not None:
+            mpd_params = sum(p.numel() for p in discriminator.mpd.parameters())
+            print(f"  MPD: {mpd_params / 1e6:.2f}M")
+        if discriminator.msd is not None:
+            msd_params = sum(p.numel() for p in discriminator.msd.parameters())
+            print(f"  MSD: {msd_params / 1e6:.2f}M")
+        if discriminator.mbsds is not None:
+            mbsd_params = sum(p.numel() for p in discriminator.mbsds.parameters())
+            print(f"  MBSD: {mbsd_params / 1e6:.2f}M")
         # Create discriminator loss function (hinge or lsgan, default hinge)
         disc_loss_type = training_config.get('disc_loss_type', 'hinge')
         disc_loss_fn = DiscriminatorLoss(loss_type=disc_loss_type)
